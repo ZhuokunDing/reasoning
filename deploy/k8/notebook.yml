@@ -1,0 +1,96 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: reasoning
+spec:
+  parallelism: 1
+  backoffLimit: 50
+  template:
+    spec:
+      runtimeClassName: nvidia
+      volumes:
+        - name: time
+          hostPath:
+            path: /etc/localtime
+        - name: mnt
+          hostPath:
+            path: /mnt
+      restartPolicy: OnFailure
+      hostNetwork: true
+      hostIPC: true
+      # priorityClassName: high-priority
+      containers:
+        - name: run
+          image: at-docker.stanford.edu:5000/zhuokund/reasoning:latest
+          resources:
+            limits:
+              nvidia.com/gpu: 1
+            requests:
+              cpu: 1
+              memory: "20Gi"
+              ephemeral-storage: "20Gi"
+          volumeMounts:
+            - name: time
+              mountPath: /etc/localtime:ro
+            - name: mnt
+              mountPath: /mnt
+          env:
+            - name: DJ_SUPPORT_FILEPATH_MANAGEMENT
+              value: "TRUE"
+            - name: DJ_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: datajoint-credentials
+                  key: DJ_HOST
+            - name: DJ_USER
+              valueFrom:
+                secretKeyRef:
+                  name: datajoint-credentials
+                  key: DJ_USER
+            - name: DJ_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: datajoint-credentials
+                  key: DJ_PASS
+            - name: GITHUB_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: github-credentials-token
+                  key: GITHUB_TOKEN
+          command: ["/bin/bash"]
+          args: [
+              "-c",
+              "cd /mnt/lab/users/zhuokun &&\
+              jupyter lab --ip='0.0.0.0' --port=8888 --allow-root --no-browser --NotebookApp.token=${DJ_HOST}",
+            ]
+      tolerations:
+        - key: "gpu"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"
+        - key: "lab"
+          operator: "Equal"
+          value: "at"
+          effect: "NoSchedule"
+        - key: "large_gpu_memory"
+          operator: "Equal"
+          value: "true"
+          effect: "PreferNoSchedule"
+        - key: "24GB_gpu_memory"
+          operator: "Equal"
+          value: "true"
+          effect: "PreferNoSchedule"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: gpu_mem_size
+                    operator: In
+                    values:
+                      - 24GB
+                      - 32GB
+                  # - key: kubernetes.io/hostname
+                  #   operator: In
+                  #   values:
+                  #     - at-gpu11

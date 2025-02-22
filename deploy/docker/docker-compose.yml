@@ -1,0 +1,23 @@
+version: '3'
+x-shared: &shared
+  image: zhuokund/reasoning:latest
+  ipc: host
+  volumes:
+    - ${SRC_PATH}:/src
+    - /mnt:/mnt
+    - ${NOTEBOOK_PATH}:/notebooks
+  env_file:
+    - .env
+
+services:
+  build:
+    <<: *shared
+    build:
+      context: .
+      dockerfile: Dockerfile
+  
+  notebook:
+    <<: *shared
+    ports:
+      - "8888:8888"
+    command: jupyter lab --ip=0.0.0.0 --allow-root --NotebookApp.token="${JUPYTER_PASSWORD:-}" --no-browser
